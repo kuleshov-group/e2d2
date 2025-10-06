@@ -5,24 +5,24 @@ cd ../ || exit  # Go to the root directory of the repo
 source setup_env.sh
 
 
-# Important variables (fix during hyperparam sweep)
+# Model arch
 N_LAYERS=28
 TOP_LAYERS=false
 REINIT_MODEL=false
 
 # Hyperparameters
-LR=1e-5 # 1e-5, 1e-4, 1e-3
+LR=1e-5
 ALPHA_F=0.0
-WARMUP_DURATION="1000ba" # 0.1, 0.3, 0.5
+WARMUP_DURATION="1000ba"
 BATCH_SIZE=96
 MAX_DURATION="20000ba"
-PRECISION="amp_bf16" # amp_bf16 fp32
+PRECISION="amp_bf16"
 
 PRETRAINED_MODEL_NAME_OR_PATH=Qwen/Qwen3-1.7B-Base
 NUM_SHOT=0
 TRAIN_ON_CONTEXT=false
 
-TAG=ar
+TAG="ar"
 if [ "${TOP_LAYERS}" == "true" ]; then
   LAYERS="TOPlayers${N_LAYERS}"
 else
@@ -53,9 +53,9 @@ composer -n ${NUM_VISIBLE_DEVICES} scripts/composer_scripts/train_discrete_denoi
   model=ar \
   model/backbone@model.config.backbone_config=automodel_for_causal_lm \
   model.config.length=768 \
-  model.config.backbone_config.reinit_model=${REINIT_MODEL} \
+  model.config.backbone_config.reinit_model=true \
   model.config.backbone_config.num_layers=${N_LAYERS} \
-  model.config.backbone_config.keep_top_layers=${TOP_LAYERS} \
+  model.config.backbone_config.keep_top_layers=false \
   training.global_batch_size=${BATCH_SIZE} \
   training.grad_accum=$(( BATCH_SIZE / NUM_VISIBLE_DEVICES / MICRO_BATCH_SIZE )) \
   ~composer.trainer.compile_config \

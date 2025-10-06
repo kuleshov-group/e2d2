@@ -4,7 +4,7 @@
 cd ../ || exit  # Go to the root directory of the repo
 source setup_env.sh
 
-# Important variables (fix during hyperparam sweep)
+# Model arch
 N_LAYERS=-1
 TOP_LAYERS=false
 REINIT_MODEL=false
@@ -15,12 +15,12 @@ WARMUP_DURATION="100ba"
 ALPHA_F=0.5
 BATCH_SIZE=1
 MAX_DURATION="30000ba"
-PRECISION="amp_bf16" # amp_bf16 fp32
+PRECISION="amp_bf16"
 
 PRETRAINED_MODEL_NAME_OR_PATH=Qwen/Qwen3-1.7B-Base
 NUM_SHOT=0
 
-TAG=mdlm
+TAG="mdlm"
 if [ "${TOP_LAYERS}" == "true" ]; then
   LAYERS="TOPlayers${N_LAYERS}"
 else

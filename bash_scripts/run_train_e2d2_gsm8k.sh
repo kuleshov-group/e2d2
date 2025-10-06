@@ -4,9 +4,9 @@
 cd ../ || exit  # Go to the root directory of the repo
 source setup_env.sh
 
-# Important variables (fix during hyperparam sweep)
-BLOCK_SIZE=8
-EVAL_BLOCK_SIZE=8
+# Model arch
+BLOCK_SIZE=4
+EVAL_BLOCK_SIZE=4
 N_ENCODER_LAYERS=28
 ENCODER_TOP_LAYERS=false
 N_DECODER_LAYERS=14
@@ -23,13 +23,13 @@ WARMUP_DURATION="100ba"
 ALPHA_F=0.5
 BATCH_SIZE=1
 MAX_DURATION="30000ba"
-PRECISION="amp_bf16" # amp_bf16 fp32
+PRECISION="amp_bf16"
 
 PRETRAINED_MODEL_NAME_OR_PATH=Qwen/Qwen3-1.7B-Base
 NUM_SHOT=0
 TRAIN_ON_CONTEXT=false
 
-TAG=e2d2
+TAG="e2d2"
 if [ "${ENCODER_TOP_LAYERS}" == "true" ]; then
   ENC_LAYERS="TOPenc${N_ENCODER_LAYERS}"
 else
