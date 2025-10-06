@@ -79,7 +79,6 @@ class HuggingFaceCompatibleCheckpointing(CheckpointSaver):
             )
         self.saved_hf_checkpoints: list[str] = []
         self.all_saved_hf_checkpoints_to_timestamp: dict[str, Timestamp] = {}
-        # TODO: Leads to OSError device is busy when using tmpdir in /share/kuleshov
 
     def fit_start(self, state: State, logger: Logger) -> None:
         super().fit_start(state, logger)
