@@ -1,4 +1,4 @@
-name: dllm-dev
+name: e2d2-env
 channels:
   - pytorch
   - anaconda

@@ -26,8 +26,8 @@ micromamba env create -y -f requirements.yaml --channel-priority flexible
 Activate the environment:
 
 ```bash
-conda activate dllm-dev
-# OR micromamba activate dllm-dev
+conda activate e2d2-env
+# OR micromamba activate e2d2-env
 ```
 
 We also include a [`setup_env.sh`](./setup_env.sh) script that can be used to set up the
@@ -110,11 +110,11 @@ See [below](##reproducing-experiments).
 ## 2. Reproducing Experiments
 The shell scripts provided in [`bash_scripts`](bash_scripts) can be used to reproduce
 the training and evaluations from our work.
-For training, the files follow a convention where the dataset and denoiser class are
+- For training, the files follow a convention where the dataset and denoiser class are
 specified.
 For example, to train the fine-tuning E2D2 model on the GSM8K dataset, use the following
 shell script: [`run_train_e2d2_gsm8k.sh`](bash_scripts/run_train_e2d2_gsm8k.sh).
-Once models have been trained, the provided evaluation scripts can be used to reproduce
+- Once models have been trained, the provided evaluation scripts can be used to reproduce
 tables and figures from our work.
 For example, to evaluate models trained on the WMT translation dataset, use the
 following shell script: [`run_seq2seq_eval_wmt.sh`](bash_scripts/run_seq2seq_eval_wmt.sh).
