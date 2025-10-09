@@ -74,7 +74,6 @@ class CustomQwen3Attention(Qwen3Attention):
             )
 
         # NOTE: downcast for flex-attention compatibility
-        # TODO: Maybe upcast qk to v dtype instead?
         query_states, key_states = (
             query_states.to(value_states.dtype),
             key_states.to(value_states.dtype),
