@@ -53,8 +53,6 @@ composer -n ${NUM_VISIBLE_DEVICES} scripts/composer_scripts/train_discrete_denoi
   +model.config.backbone_config.intermediate_size=${INTERMEDIATE_SIZE} \
   training.global_batch_size=${BATCH_SIZE} \
   training.grad_accum=$(( BATCH_SIZE / NUM_VISIBLE_DEVICES / MICRO_BATCH_SIZE )) \
-  ~composer.trainer.compile_config \
-  ~composer.trainer.parallelism_config \
   training.antithetic_sampling=false \
   hydra.run.dir=${RUN_DIR}/${RUN_NAME} \
   composer.trainer.save_interval="1000ba" \

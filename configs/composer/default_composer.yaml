@@ -13,5 +13,3 @@ defaults:
   - loggers: wandb
   - lr_scheduler: constant_with_warmup
   - optimizer: decoupled_adamw
-  - compile@trainer.compile_config: pytorch_defaults
-  - parallelism@trainer.parallelism_config: fsdp
