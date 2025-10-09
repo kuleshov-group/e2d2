@@ -412,7 +412,7 @@ class D3PM(Denoiser):
             device=device,
         )[:-1]
 
-    def _generate_unconditional(  # TODO: add CBG and CFG generation
+    def _generate_unconditional(
         self,
         generation_config: DiffusionGenerationConfig,
         alpha_t: torch.FloatTensor,
@@ -768,8 +768,6 @@ class MDLM(D3PM):
 class BD3LMConfig(MDLMConfig):
     """Configuration class for BD3LM models."""
 
-    # TODO: Make e2d2 its own class; avoids if-else on backbone_is_decoder_only
-
     model_type = "bd3lm"
     auto_map = {
         "AutoConfig": "diffusion.BD3LMConfig",
@@ -781,7 +779,6 @@ class BD3LMConfig(MDLMConfig):
         self,
         block_size: int | None = None,
         eval_block_size: int | None = None,
-        backbone_is_decoder_only: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -789,14 +786,10 @@ class BD3LMConfig(MDLMConfig):
         self.eval_block_size = (
             eval_block_size if eval_block_size is not None else block_size
         )
-        # Determines whether inputs / masks are concatenated or separate for enc-dec
-        self.backbone_is_decoder_only = backbone_is_decoder_only
 
 
 class BD3LM(MDLM):
     """Denoiser class for BD3LM models."""
-
-    # TODO: Make e2d2 its own class; avoids if-else on backbone_is_decoder_only
 
     config_class = BD3LMConfig
 
@@ -837,6 +830,219 @@ class BD3LM(MDLM):
 
         # **3. Combine Masks **
         return block_diagonal | offset_block_causal | block_causal
+
+    def _create_static_mask(self) -> None:
+        static_mask = self._block_mask(
+            b=None,
+            h=None,
+            q_idx=torch.arange(self.config.length * 2)[:, None],
+            kv_idx=torch.arange(self.config.length * 2)[None, :],
+            block_size=self.config.block_size
+            if self.training
+            else self.config.eval_block_size,
+            seq_length=self.config.length,
+        )
+        if self.config.attn_backend == "flex_attention":
+            self.static_attention_mask = static_mask
+        else:
+            self.register_buffer(
+                "static_attention_mask",
+                static_mask,
+            )
+
+    def _ensure_no_unmasked_blocks(
+        self,
+        input_ids: torch.LongTensor,
+        xt: torch.LongTensor,
+        context_mask: torch.FloatTensor | None = None,
+    ) -> torch.Tensor:
+        n_blocks = xt.shape[1] // self.config.block_size
+        # If context overlaps w/block, ignore it
+        blocks_without_masks = ((xt == self.mask_token_id) + context_mask).reshape(
+            -1, n_blocks, self.config.block_size
+        ).sum(dim=-1) == 0
+        if blocks_without_masks.sum() > 0:
+            num_remasks_per_block = torch.randint(
+                0,
+                self.config.block_size,
+                blocks_without_masks.shape,
+                device=xt.device,
+            )
+            rand = torch.rand(xt.shape[0], xt.shape[1], device=xt.device)
+            perm_indices = torch.argsort(
+                rand.view(xt.shape[0], n_blocks, self.config.block_size),
+                stable=True,
+                dim=-1,
+            )
+            remask_indices = perm_indices <= num_remasks_per_block[..., None]
+            xt = torch.where(
+                remask_indices.view(xt.shape[0], xt.shape[1])
+                * blocks_without_masks.repeat_interleave(self.config.block_size, dim=1),
+                self.mask_token_id,
+                xt,
+            )
+            if self.config.keep_clean_bos:
+                xt[..., 0] = input_ids[..., 0]
+            return xt
+
+    def _prepare_inputs(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.FloatTensor | None = None,
+        context_mask: torch.FloatTensor | None = None,
+        t: torch.FloatTensor | None = None,
+        past_key_values: Cache | None = None,
+    ):
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        if context_mask is None:
+            context_mask = torch.zeros_like(attention_mask)
+
+        if torch.is_floating_point(attention_mask):
+            attention_mask = attention_mask.to(torch.int)
+            context_mask = context_mask.to(torch.int)
+
+        if t is None:
+            t = torch.rand(
+                input_ids.shape[0],
+                input_ids.shape[1] // self.config.block_size
+                if self.training
+                else self.config.eval_block_size,
+                device=input_ids.device,
+            ).repeat_interleave(
+                self.config.block_size
+                if self.training
+                else self.config.eval_block_size,
+                dim=-1,
+            )
+        alpha_t, alpha_t_prime = self.noise_schedule(t)
+        while alpha_t.ndim < 2:
+            alpha_t = alpha_t[..., None]
+            alpha_t_prime = alpha_t_prime[..., None]
+        xt = self._sample_q_xt(x0=input_ids, alpha_t=alpha_t, context_mask=context_mask)
+        # Ensure each block has at least 1 masked token
+        if self.training:
+            xt = self._ensure_no_unmasked_blocks(
+                input_ids,
+                xt,
+                context_mask,
+            )
+        # TODO: Enable flex-attention for decoder only backbones
+        # TODO: Enable bi-directional attention on context
+        decoder_attention_mask = (
+            self.static_attention_mask[None, ...]
+            & attention_mask.repeat(1, 2)[:, None, :]
+            & attention_mask.repeat(1, 2)[..., None]
+        )[:, None, ...]  # Make attention mask 4D
+        decoder_attention_mask = self._preprocess_attention_mask(
+            decoder_attention_mask, dtype=torch.float
+        )
+        backbone_input_ids = torch.cat((input_ids, xt), dim=-1)
+        position_ids = (
+            torch.arange(input_ids.shape[1]).repeat(2).to(input_ids.device)[None, :]
+        )
+        if self.training and self.config.train_on_context:
+            tokens_mask = attention_mask
+        else:
+            tokens_mask = attention_mask * (1 - context_mask)
+        return DenoiserInput(
+            xt=backbone_input_ids,  # type: ignore
+            x0=input_ids,
+            attention_mask=decoder_attention_mask,  # type: ignore
+            tokens_mask=tokens_mask,
+            t=t,
+            alpha_t=alpha_t,
+            alpha_t_prime=alpha_t_prime,
+            backbone_kwargs={
+                "cache_position": position_ids[0],
+                "position_ids": position_ids,
+            },
+        )
+
+    def _prepare_inputs_inference(
+        self,
+        input_ids: torch.LongTensor | None = None,
+        attention_mask: torch.FloatTensor | None = None,
+        context: torch.LongTensor | None = None,
+        context_mask: torch.FloatTensor | None = None,
+        cache: Dict[str, Any] | None = None,
+        return_updated_cache: bool = False,
+        **backbone_kwargs: Dict[str, Any],
+    ) -> Tuple[DenoiserInput, Union[Dict[str, Any], None]]:
+        device = input_ids.device if input_ids is not None else context.device
+        assert input_ids is not None or context is not None, (
+            "Must provide either input_ids or context."
+        )
+        cache = cache if cache is not None else {}
+        past_key_values = cache.pop("past_key_values", DynamicCache())
+        if context is not None:
+            if input_ids is not None:
+                input_ids = torch.cat([context, input_ids], dim=-1)
+            else:
+                input_ids = context
+        cache_length = self._get_past_key_values_seq_length(past_key_values)
+        full_seq_length = cache_length + input_ids.shape[-1]
+        decoder_attention_mask = self.static_attention_mask[
+            None,
+            None,
+            cache_length:full_seq_length,
+            :full_seq_length,
+        ]  # Make attention mask 4D
+        decoder_attention_mask = self._preprocess_attention_mask(
+            decoder_attention_mask, dtype=torch.float
+        )
+        position_ids = torch.arange(cache_length, full_seq_length).to(device)[None, :]
+        return DenoiserInput(
+            xt=input_ids,
+            attention_mask=decoder_attention_mask,
+            context_mask=context_mask,
+            past_key_values=past_key_values,
+            backbone_kwargs={
+                "position_ids": position_ids,
+            }
+            | backbone_kwargs,
+        ), cache
+
+    def _compute_loss(
+        self,
+        model_output: torch.FloatTensor,
+        denoiser_inputs: DenoiserInput,
+        **kwargs: Any,
+    ) -> LossAndNllOutput:
+        if self.config.backbone_is_decoder_only:
+            input_length = denoiser_inputs.xt.shape[1] // 2
+            model_output = model_output[:, input_length:, ...]
+        return super()._compute_loss(
+            model_output=model_output,
+            denoiser_inputs=denoiser_inputs,
+            **kwargs,
+        )
+
+
+class E2D2Config(BD3LMConfig):
+    """Configuration class for E2D2 models."""
+
+    model_type = "e2d2"
+    auto_map = {
+        "AutoConfig": "diffusion.E2D2Config",
+        "AutoModel": "diffusion.E2D2",
+        "AutoModelForMaskedLM": "diffusion.E2D2",
+    }
+
+    def __init__(
+        self,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+
+class E2D2(BD3LM):
+    """Denoiser class for E2D2 models."""
+
+    config_class = E2D2Config
+
+    def __init__(self, config: E2D2Config, **kwargs):
+        super().__init__(config, **kwargs)
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -894,52 +1100,33 @@ class BD3LM(MDLM):
         return block_diagonal | offset_block_causal
 
     def _create_static_mask(self) -> None:
-        if self.config.backbone_is_decoder_only:
-            static_mask = self._block_mask(
-                b=None,
-                h=None,
-                q_idx=torch.arange(self.config.length * 2)[:, None],
-                kv_idx=torch.arange(self.config.length * 2)[None, :],
-                block_size=self.config.block_size
-                if self.training
-                else self.config.eval_block_size,
-                seq_length=self.config.length,
-            )
-            if self.config.attn_backend == "flex_attention":
-                self.static_attention_mask = static_mask
-            else:
-                self.register_buffer(
-                    "static_attention_mask",
-                    static_mask,
-                )
-        else:
-            encoder_static_mask = self._encoder_block_mask(
-                b=None,
-                h=None,
-                q_idx=torch.arange(self.config.length)[:, None],
-                kv_idx=torch.arange(self.config.length)[None, :],
-                block_size=self.config.block_size
-                if self.training
-                else self.config.eval_block_size,
-            )
-            decoder_static_mask = self._decoder_block_mask(
-                b=None,
-                h=None,
-                q_idx=torch.arange(self.config.length)[:, None],
-                kv_idx=torch.arange(self.config.length * 2)[None, :],
-                block_size=self.config.block_size
-                if self.training
-                else self.config.eval_block_size,
-                seq_length=self.config.length,
-            )
-            self.register_buffer(
-                "encoder_static_attention_mask",
-                encoder_static_mask,
-            )
-            self.register_buffer(
-                "static_attention_mask",
-                decoder_static_mask,
-            )
+        encoder_static_mask = self._encoder_block_mask(
+            b=None,
+            h=None,
+            q_idx=torch.arange(self.config.length)[:, None],
+            kv_idx=torch.arange(self.config.length)[None, :],
+            block_size=self.config.block_size
+            if self.training
+            else self.config.eval_block_size,
+        )
+        decoder_static_mask = self._decoder_block_mask(
+            b=None,
+            h=None,
+            q_idx=torch.arange(self.config.length)[:, None],
+            kv_idx=torch.arange(self.config.length * 2)[None, :],
+            block_size=self.config.block_size
+            if self.training
+            else self.config.eval_block_size,
+            seq_length=self.config.length,
+        )
+        self.register_buffer(
+            "encoder_static_attention_mask",
+            encoder_static_mask,
+        )
+        self.register_buffer(
+            "static_attention_mask",
+            decoder_static_mask,
+        )
 
     def _prepare_inputs(
         self,
@@ -978,150 +1165,90 @@ class BD3LM(MDLM):
         xt = self._sample_q_xt(x0=input_ids, alpha_t=alpha_t, context_mask=context_mask)
         # Ensure each block has at least 1 masked token
         if self.training:
-            n_blocks = xt.shape[1] // self.config.block_size
-            blocks_without_masks = (
-                # If context overlaps w/block, ignore it
-                (xt == self.mask_token_id) + context_mask
-            ).reshape(-1, n_blocks, self.config.block_size).sum(dim=-1) == 0
-            if blocks_without_masks.sum() > 0:
-                num_remasks_per_block = torch.randint(
-                    0,
-                    self.config.block_size,
-                    blocks_without_masks.shape,
-                    device=xt.device,
-                )
-                rand = torch.rand(xt.shape[0], xt.shape[1], device=xt.device)
-                perm_indices = torch.argsort(
-                    rand.view(xt.shape[0], n_blocks, self.config.block_size),
-                    stable=True,
-                    dim=-1,
-                )
-                remask_indices = perm_indices <= num_remasks_per_block[..., None]
-                xt = torch.where(
-                    remask_indices.view(xt.shape[0], xt.shape[1])
-                    * blocks_without_masks.repeat_interleave(
-                        self.config.block_size, dim=1
-                    ),
-                    self.mask_token_id,
-                    xt,
-                )
-                if self.config.keep_clean_bos:
-                    xt[..., 0] = input_ids[..., 0]
-
-        if self.config.backbone_is_decoder_only:
-            # TODO: Enable flex-attention for decoder only backbones
-            # TODO: Enable bi-directional attention on context
+            xt = self._ensure_no_unmasked_blocks(
+                input_ids,
+                xt,
+                context_mask,
+            )
+        if self.config.attn_backend == "sdpa":
             decoder_attention_mask = (
                 self.static_attention_mask[None, ...]
                 & attention_mask.repeat(1, 2)[:, None, :]
-                & attention_mask.repeat(1, 2)[..., None]
+                & attention_mask[..., None]
             )[:, None, ...]  # Make attention mask 4D
+            encoder_attention_mask = (
+                (
+                    self.encoder_static_attention_mask[None, ...]
+                    | context_mask[:, None, :]
+                )
+                & attention_mask[:, None, :]
+                & attention_mask[..., None]
+            )[:, None, ...]  # Make attention mask 4D
+            encoder_attention_mask = self._preprocess_attention_mask(
+                encoder_attention_mask, dtype=torch.float
+            )
             decoder_attention_mask = self._preprocess_attention_mask(
                 decoder_attention_mask, dtype=torch.float
             )
-            backbone_input_ids = torch.cat((input_ids, xt), dim=-1)
-            position_ids = (
-                torch.arange(input_ids.shape[1]).repeat(2).to(input_ids.device)[None, :]
+        elif self.config.attn_backend == "flex_attention":
+            # TODO enable bi-directional attention on context
+            padding_mask = create_attn_mask(attention_mask.bool())
+            dec_padding_mask = create_attn_mask(attention_mask.repeat(1, 2).bool())
+            enc_masks = [
+                partial(
+                    self._encoder_block_mask,
+                    block_size=self.config.block_size
+                    if self.training
+                    else self.config.eval_block_size,
+                ),
+                padding_mask,
+            ]
+            encoder_attention_mask = create_block_mask_compiled(
+                and_masks(*enc_masks),
+                B=input_ids.shape[0],
+                H=None,
+                Q_LEN=input_ids.shape[1],
+                KV_LEN=input_ids.shape[1],
             )
-            if self.training and self.config.train_on_context:
-                tokens_mask = attention_mask
-            else:
-                tokens_mask = attention_mask * (1 - context_mask)
-            return DenoiserInput(
-                xt=backbone_input_ids,  # type: ignore
-                x0=input_ids,
-                attention_mask=decoder_attention_mask,  # type: ignore
-                tokens_mask=tokens_mask,
-                t=t,
-                alpha_t=alpha_t,
-                alpha_t_prime=alpha_t_prime,
-                backbone_kwargs={
-                    "cache_position": position_ids[0],
-                    "position_ids": position_ids,
-                },
+            dec_masks = [
+                partial(
+                    self._decoder_block_mask,
+                    block_size=self.config.block_size
+                    if self.training
+                    else self.config.eval_block_size,
+                    seq_length=input_ids.shape[1],
+                ),
+                dec_padding_mask,
+            ]
+            decoder_attention_mask = create_block_mask_compiled(
+                and_masks(*dec_masks),
+                B=input_ids.shape[0],
+                H=None,
+                Q_LEN=input_ids.shape[1],
+                KV_LEN=input_ids.shape[1] * 2,
             )
         else:
-            if self.config.attn_backend == "sdpa":
-                decoder_attention_mask = (
-                    self.static_attention_mask[None, ...]
-                    & attention_mask.repeat(1, 2)[:, None, :]
-                    & attention_mask[..., None]
-                )[:, None, ...]  # Make attention mask 4D
-                encoder_attention_mask = (
-                    (
-                        self.encoder_static_attention_mask[None, ...]
-                        | context_mask[:, None, :]
-                    )
-                    & attention_mask[:, None, :]
-                    & attention_mask[..., None]
-                )[:, None, ...]  # Make attention mask 4D
-                encoder_attention_mask = self._preprocess_attention_mask(
-                    encoder_attention_mask, dtype=torch.float
-                )
-                decoder_attention_mask = self._preprocess_attention_mask(
-                    decoder_attention_mask, dtype=torch.float
-                )
-            elif self.config.attn_backend == "flex_attention":
-                # TODO enable bi-directional attention on context
-                padding_mask = create_attn_mask(attention_mask.bool())
-                dec_padding_mask = create_attn_mask(attention_mask.repeat(1, 2).bool())
-                enc_masks = [
-                    partial(
-                        self._encoder_block_mask,
-                        block_size=self.config.block_size
-                        if self.training
-                        else self.config.eval_block_size,
-                    ),
-                    padding_mask,
-                ]
-                encoder_attention_mask = create_block_mask_compiled(
-                    and_masks(*enc_masks),
-                    B=input_ids.shape[0],
-                    H=None,
-                    Q_LEN=input_ids.shape[1],
-                    KV_LEN=input_ids.shape[1],
-                )
-                dec_masks = [
-                    partial(
-                        self._decoder_block_mask,
-                        block_size=self.config.block_size
-                        if self.training
-                        else self.config.eval_block_size,
-                        seq_length=input_ids.shape[1],
-                    ),
-                    dec_padding_mask,
-                ]
-                decoder_attention_mask = create_block_mask_compiled(
-                    and_masks(*dec_masks),
-                    B=input_ids.shape[0],
-                    H=None,
-                    Q_LEN=input_ids.shape[1],
-                    KV_LEN=input_ids.shape[1] * 2,
-                )
-            else:
-                raise ValueError("Unknown backbone backend")
-            position_ids = torch.arange(input_ids.shape[1]).to(input_ids.device)[
-                None, :
-            ]
-            if self.training and self.config.train_on_context:
-                tokens_mask = attention_mask
-            else:
-                tokens_mask = attention_mask * (1 - context_mask)
-            return DenoiserInput(
-                xt=xt,
-                x0=input_ids,
-                attention_mask=decoder_attention_mask,
-                tokens_mask=tokens_mask,
-                t=t,
-                alpha_t=alpha_t,
-                alpha_t_prime=alpha_t_prime,
-                backbone_kwargs={
-                    "encoder_input_ids": input_ids,
-                    "encoder_attention_mask": encoder_attention_mask,
-                    "encoder_position_ids": position_ids,
-                    "encoder_cache_position": position_ids[0],
-                },
-            )
+            raise ValueError("Unknown backbone backend")
+        position_ids = torch.arange(input_ids.shape[1]).to(input_ids.device)[None, :]
+        if self.training and self.config.train_on_context:
+            tokens_mask = attention_mask
+        else:
+            tokens_mask = attention_mask * (1 - context_mask)
+        return DenoiserInput(
+            xt=xt,
+            x0=input_ids,
+            attention_mask=decoder_attention_mask,
+            tokens_mask=tokens_mask,
+            t=t,
+            alpha_t=alpha_t,
+            alpha_t_prime=alpha_t_prime,
+            backbone_kwargs={
+                "encoder_input_ids": input_ids,
+                "encoder_attention_mask": encoder_attention_mask,
+                "encoder_position_ids": position_ids,
+                "encoder_cache_position": position_ids[0],
+            },
+        )
 
     def _prepare_inputs_inference(
         self,
@@ -1138,39 +1265,6 @@ class BD3LM(MDLM):
         assert input_ids is not None or context is not None, (
             "Must provide either input_ids or context."
         )
-        if self.config.backbone_is_decoder_only:
-            cache = cache if cache is not None else {}
-            past_key_values = cache.pop("past_key_values", DynamicCache())
-            if context is not None:
-                if input_ids is not None:
-                    input_ids = torch.cat([context, input_ids], dim=-1)
-                else:
-                    input_ids = context
-            cache_length = self._get_past_key_values_seq_length(past_key_values)
-            full_seq_length = cache_length + input_ids.shape[-1]
-            decoder_attention_mask = self.static_attention_mask[
-                None,
-                None,
-                cache_length:full_seq_length,
-                :full_seq_length,
-            ]  # Make attention mask 4D
-            decoder_attention_mask = self._preprocess_attention_mask(
-                decoder_attention_mask, dtype=torch.float
-            )
-            position_ids = torch.arange(cache_length, full_seq_length).to(device)[
-                None, :
-            ]
-            return DenoiserInput(
-                xt=input_ids,
-                attention_mask=decoder_attention_mask,
-                context_mask=context_mask,
-                past_key_values=past_key_values,
-                backbone_kwargs={
-                    "position_ids": position_ids,
-                }
-                | backbone_kwargs,
-            ), cache
-        # Encoder-decoder inputs
         if return_updated_cache:  # Indicates this is a cache update step
             context = input_ids
             input_ids = None
@@ -1265,18 +1359,3 @@ class BD3LM(MDLM):
             }
             | backbone_kwargs,
         ), cache  # TODO: potentially returning cache None, violates return type
-
-    def _compute_loss(
-        self,
-        model_output: torch.FloatTensor,
-        denoiser_inputs: DenoiserInput,
-        **kwargs: Any,
-    ) -> LossAndNllOutput:
-        if self.config.backbone_is_decoder_only:
-            input_length = denoiser_inputs.xt.shape[1] // 2
-            model_output = model_output[:, input_length:, ...]
-        return super()._compute_loss(
-            model_output=model_output,
-            denoiser_inputs=denoiser_inputs,
-            **kwargs,
-        )
