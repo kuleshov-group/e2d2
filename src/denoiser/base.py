@@ -368,7 +368,6 @@ class Denoiser(ABC, PreTrainedModel):
     @staticmethod
     def _sample_categorical(categorical_probs, do_sample=True):
         """Helper function to sample from a categorical distribution."""
-        # TODO: for greedy, can we skip fp64 casting?
         categorical_probs = categorical_probs.to(torch.float64)
         if not do_sample:
             return categorical_probs.argmax(dim=-1)
