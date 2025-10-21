@@ -194,26 +194,27 @@ class LLMasEncoderDecoder(nn.Module):
         for p in self.encoder.model.parameters():
             p.requires_grad = True
 
+    # noinspection PyUnusedLocal
     def forward(
         self,
         # Decoder inputs
         input_ids: torch.LongTensor,
-        attention_mask: torch.FloatTensor | BlockMask | None = None,
-        position_ids: torch.LongTensor | None = None,
-        cache_position: torch.LongTensor | None = None,
-        past_key_values: DynamicCache | None = None,
-        encoder_last_hidden_state: torch.FloatTensor | None = None,
+        attention_mask: Optional[Union[torch.FloatTensor, BlockMask]] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        cache_position: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[DynamicCache] = None,
+        encoder_last_hidden_state: Optional[torch.FloatTensor] = None,
         # Encoder inputs
-        encoder_input_ids: torch.LongTensor | None = None,
-        encoder_attention_mask: torch.FloatTensor | BlockMask | None = None,
-        encoder_position_ids: torch.LongTensor | None = None,
-        encoder_cache_position: torch.LongTensor | None = None,
-        encoder_past_key_values: DynamicCache | None = None,
+        encoder_input_ids: Optional[torch.LongTensor] = None,
+        encoder_attention_mask: Optional[Union[torch.FloatTensor, BlockMask]] = None,
+        encoder_position_ids: Optional[torch.LongTensor] = None,
+        encoder_cache_position: Optional[torch.LongTensor] = None,
+        encoder_past_key_values: Optional[DynamicCache] = None,
         # Additional args
         fix_cache_length: bool = True,  # Not used; compatibility with other backbones
         return_updated_cache: bool = False,
         **flash_attn_kwargs: Unpack[FlashAttentionKwargs],
-    ) -> DecoderCausalLMOutputWithPast | EncoderBaseModelOutputWithPast:
+    ) -> Union[DecoderCausalLMOutputWithPast, EncoderBaseModelOutputWithPast]:
         # During training/eval encoder_last_hidden_state is None.
         # During generation encoder_last_hidden_state can be not None.
         new_seen_tokens = (
@@ -544,26 +545,27 @@ class LLMasEncoderDecoderShareKV(nn.Module):
         for p in self.encoder.model.parameters():
             p.requires_grad = True
 
+    # noinspection PyUnusedLocal
     def forward(
         self,
         # Decoder inputs
         input_ids: torch.LongTensor,
-        attention_mask: torch.FloatTensor | BlockMask | None = None,
-        position_ids: torch.LongTensor | None = None,
-        cache_position: torch.LongTensor | None = None,
-        past_key_values: DynamicCache | None = None,
-        encoder_last_hidden_state: torch.FloatTensor | None = None,  # Not used
+        attention_mask: Optional[Union[torch.FloatTensor, BlockMask]] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        cache_position: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[DynamicCache] = None,
+        encoder_last_hidden_state: Optional[torch.FloatTensor] = None,  # Not used
         # Encoder inputs
-        encoder_input_ids: torch.LongTensor | None = None,
-        encoder_attention_mask: torch.FloatTensor | BlockMask | None = None,
-        encoder_position_ids: torch.LongTensor | None = None,
-        encoder_cache_position: torch.LongTensor | None = None,
-        encoder_past_key_values: DynamicCache | None = None,  # Not used
+        encoder_input_ids: Optional[torch.LongTensor] = None,
+        encoder_attention_mask: Optional[Union[torch.FloatTensor, BlockMask]] = None,
+        encoder_position_ids: Optional[torch.LongTensor] = None,
+        encoder_cache_position: Optional[torch.LongTensor] = None,
+        encoder_past_key_values: Optional[DynamicCache] = None,  # Not used
         # Additional args
         fix_cache_length: bool = True,  # Not used; compatibility with other backbones
         return_updated_cache: bool = False,
         **flash_attn_kwargs: Unpack[FlashAttentionKwargs],
-    ) -> CausalLMOutputWithPast | BaseModelOutputWithPast:
+    ) -> Union[CausalLMOutputWithPast, BaseModelOutputWithPast]:
         # Encode clean tokens
         if encoder_input_ids is not None:
             if self.use_encoder_causal_mask:

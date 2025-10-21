@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Dict, Literal, Tuple, Union
+from typing import Any, Dict, Literal, Optional, Tuple, Union
 
 import torch
 from tqdm.auto import tqdm
@@ -37,13 +37,12 @@ def create_attn_mask(attn_mask):
     return padding
 
 
-
 class DiffusionGenerationConfig(GenerationConfig):
     def __init__(
         self,
         num_steps: int = 1000,
         min_t: float = 1e-5,
-        block_size: int | None = None,
+        block_size: Optional[int] = None,
         first_hitting: bool = False,
         sampling_strategy: Literal["posterior", "predict_then_noise"] = "posterior",
         confidence_based_noising: bool = False,
@@ -144,7 +143,7 @@ class D3PMConfig(DenoiserConfig):
 
     def __init__(
         self,
-        keep_clean_bos: bool | None = None,  # Whether to enforce un-noised BOS token
+        keep_clean_bos: Optional[bool] = None,  # Whether to enforce un-noised BOS token
         T: int = 1000,
         diffusion_type: Literal["absorbing", "uniform"] = "absorbing",
         **kwargs,
@@ -214,10 +213,10 @@ class D3PM(Denoiser):
     def _prepare_inputs(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: torch.FloatTensor | None = None,
-        context_mask: torch.FloatTensor | None = None,
-        t: torch.FloatTensor | None = None,
-        past_key_values: Cache | None = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        context_mask: Optional[torch.FloatTensor] = None,
+        t: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Cache] = None,
     ):
         # Prepare inputs for D3PM model
         if attention_mask is None:
@@ -240,7 +239,11 @@ class D3PM(Denoiser):
             alpha_t=alpha_t,
             context_mask=context_mask,
         )
-        if context_mask is not None and context_mask.sum() == 0 and (attention_mask == 1).all():
+        if (
+            context_mask is not None
+            and context_mask.sum() == 0
+            and (attention_mask == 1).all()
+        ):
             processed_attention_mask = None
         else:
             processed_attention_mask = (
@@ -268,11 +271,11 @@ class D3PM(Denoiser):
 
     def _prepare_inputs_inference(
         self,
-        input_ids: torch.LongTensor | None = None,
-        attention_mask: torch.FloatTensor | None = None,
-        context: torch.LongTensor | None = None,
-        context_mask: torch.FloatTensor | None = None,
-        cache: Dict[str, Any] | None = None,
+        input_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        context: Optional[torch.LongTensor] = None,
+        context_mask: Optional[torch.FloatTensor] = None,
+        cache: Optional[Dict[str, Any]] = None,
         **backbone_kwargs: Any,
     ) -> Tuple[DenoiserInput, Dict[str, Any]]:
         assert input_ids is not None or context is not None, (
@@ -344,7 +347,7 @@ class D3PM(Denoiser):
 
     def _compute_posterior(
         self,
-        x: torch.FloatTensor | torch.LongTensor,
+        x: Union[torch.FloatTensor, torch.LongTensor],
         xt: torch.LongTensor,
         alpha_t: torch.FloatTensor,
         alpha_s: torch.FloatTensor,
@@ -363,7 +366,7 @@ class D3PM(Denoiser):
             q_xs = x * (alpha_s - alpha_t)
             q_xs[..., self.mask_token_id] = 1 - alpha_s[..., 0]
             q_xs /= 1 - alpha_t
-            return q_xs
+            return q_xs  # type: ignore
 
         alpha_ts = alpha_t / alpha_s
         d_alpha = alpha_s - alpha_t
@@ -386,8 +389,8 @@ class D3PM(Denoiser):
     @staticmethod
     def _sample_generation_timesteps(
         generation_config: DiffusionGenerationConfig,
-        max_length: int | None = None,
-        device: str | None = None,
+        max_length: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> torch.FloatTensor:
         """Sample timesteps for diffusion generation process."""
         if device is None:
@@ -418,11 +421,11 @@ class D3PM(Denoiser):
         generation_config: DiffusionGenerationConfig,
         alpha_t: torch.FloatTensor,
         alpha_s: torch.FloatTensor,
-        denoiser_inputs: DenoiserInput | None = None,
-        model_output_cache: Dict[str, torch.FloatTensor] | None = None,
-        cache: Dict[str, Any] | None = None,
-        running_generation: torch.LongTensor | None = None,
-        logits_processor: LogitsProcessorList | None = None,
+        denoiser_inputs: Optional[DenoiserInput] = None,
+        model_output_cache: Optional[Dict[str, torch.FloatTensor]] = None,
+        cache: Optional[Dict[str, Any]] = None,
+        running_generation: Optional[torch.LongTensor] = None,
+        logits_processor: Optional[LogitsProcessorList] = None,
         **kwargs: Any,
     ) -> Tuple[torch.LongTensor, Dict[str, torch.FloatTensor], Dict[str, Any]]:
         cache = cache if cache is not None else {}
@@ -522,15 +525,15 @@ class D3PM(Denoiser):
     @torch.no_grad()
     def generate(
         self,
-        inputs: torch.LongTensor | None = None,
-        generation_config: DiffusionGenerationConfig | None = None,
-        logits_processor: LogitsProcessorList | None = None,
-        stopping_criteria: StoppingCriteriaList | None = None,
-        max_length: int | None = None,
-        max_new_tokens: int | None = None,
-        batch_size: int | None = None,
-        device: str | None = None,
-        tokenizer: PreTrainedTokenizer | None = None,
+        inputs: Optional[torch.LongTensor] = None,
+        generation_config: Optional[DiffusionGenerationConfig] = None,
+        logits_processor: Optional[LogitsProcessorList] = None,
+        stopping_criteria: Optional[StoppingCriteriaList] = None,
+        max_length: Optional[int] = None,
+        max_new_tokens: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        device: Optional[str] = None,
+        tokenizer: Optional[PreTrainedTokenizer] = None,
         disable_pbar: bool = False,
         **kwargs: Any,
     ) -> torch.LongTensor:
@@ -644,7 +647,7 @@ class D3PM(Denoiser):
                     denoiser_inputs=denoiser_inputs,
                     model_output_cache=model_output_cache,
                     cache=cache,
-                    running_generation=running_generation,
+                    running_generation=running_generation,  # type: ignore
                     logits_processor=logits_processor,
                     tokenizer=tokenizer,
                     **kwargs,
@@ -778,8 +781,8 @@ class BD3LMConfig(MDLMConfig):
 
     def __init__(
         self,
-        block_size: int | None = None,
-        eval_block_size: int | None = None,
+        block_size: Optional[int] = None,
+        eval_block_size: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -804,8 +807,8 @@ class BD3LM(MDLM):
         h,
         q_idx,
         kv_idx,
-        block_size: int | None = None,
-        seq_length: int | None = None,
+        block_size: Optional[int] = None,
+        seq_length: Optional[int] = None,
     ) -> torch.Tensor:
         del b, h
 
@@ -868,7 +871,7 @@ class BD3LM(MDLM):
         self,
         input_ids: torch.LongTensor,
         xt: torch.LongTensor,
-        context_mask: torch.FloatTensor | None = None,
+        context_mask: Optional[torch.FloatTensor] = None,
     ) -> torch.Tensor:
         n_blocks = xt.shape[1] // self.config.block_size
         # If context overlaps w/block, ignore it
@@ -897,15 +900,15 @@ class BD3LM(MDLM):
             )
             if self.config.keep_clean_bos:
                 xt[..., 0] = input_ids[..., 0]
-            return xt
+        return xt
 
     def _prepare_inputs(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: torch.FloatTensor | None = None,
-        context_mask: torch.FloatTensor | None = None,
-        t: torch.FloatTensor | None = None,
-        past_key_values: Cache | None = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        context_mask: Optional[torch.FloatTensor] = None,
+        t: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Cache] = None,
     ):
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
@@ -941,8 +944,6 @@ class BD3LM(MDLM):
                 xt,
                 context_mask,
             )
-        # TODO: Enable flex-attention for decoder only backbones
-        # TODO: Enable bi-directional attention on context
         if self.config.attn_backend == "sdpa":
             decoder_attention_mask = (
                 self.static_attention_mask[None, ...]
@@ -958,7 +959,9 @@ class BD3LM(MDLM):
                     "flex_attention with context_mask not implemented yet."
                 )
             elif attention_mask is not None and (attention_mask != 1).any():
-                padding_mask = create_attn_mask(attention_mask.bool().repeat(2, 2).bool())
+                padding_mask = create_attn_mask(
+                    attention_mask.bool().repeat(2, 2).bool()
+                )
                 dec_masks = [
                     partial(
                         self._block_mask,
@@ -978,6 +981,8 @@ class BD3LM(MDLM):
                 )
             else:
                 decoder_attention_mask = self.static_attention_mask
+        else:
+            raise ValueError("Unknown backbone backend")
         backbone_input_ids = torch.cat((input_ids, xt), dim=-1)
         position_ids = (
             torch.arange(input_ids.shape[1]).repeat(2).to(input_ids.device)[None, :]
@@ -1002,11 +1007,11 @@ class BD3LM(MDLM):
 
     def _prepare_inputs_inference(
         self,
-        input_ids: torch.LongTensor | None = None,
-        attention_mask: torch.FloatTensor | None = None,
-        context: torch.LongTensor | None = None,
-        context_mask: torch.FloatTensor | None = None,
-        cache: Dict[str, Any] | None = None,
+        input_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        context: Optional[torch.LongTensor] = None,
+        context_mask: Optional[torch.FloatTensor] = None,
+        cache: Optional[Dict[str, Any]] = None,
         return_updated_cache: bool = False,
         **backbone_kwargs: Dict[str, Any],
     ) -> Tuple[DenoiserInput, Union[Dict[str, Any], None]]:
@@ -1092,7 +1097,7 @@ class E2D2(BD3LM):
         h,
         q_idx,
         kv_idx,
-        block_size: int | None = None,
+        block_size: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -1120,8 +1125,8 @@ class E2D2(BD3LM):
         h,
         q_idx,
         kv_idx,
-        block_size: int | None = None,
-        seq_length: int | None = None,
+        block_size: Optional[int] = None,
+        seq_length: Optional[int] = None,
     ) -> torch.Tensor:
         # Indicate whether token belongs to xt or x0:
         xt_flag_kv = (kv_idx >= seq_length).bool()
@@ -1173,8 +1178,8 @@ class E2D2(BD3LM):
             self.static_attention_mask = decoder_attention_mask
         else:
             encoder_static_mask = self._encoder_block_mask(
-                b=None,
-                h=None,
+                b=None,  # type: ignore
+                h=None,  # type: ignore
                 q_idx=torch.arange(self.config.length)[:, None],
                 kv_idx=torch.arange(self.config.length)[None, :],
                 block_size=self.config.block_size
@@ -1203,10 +1208,10 @@ class E2D2(BD3LM):
     def _prepare_inputs(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: torch.FloatTensor | None = None,
-        context_mask: torch.FloatTensor | None = None,
-        t: torch.FloatTensor | None = None,
-        past_key_values: Cache | None = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        context_mask: Optional[torch.FloatTensor] = None,
+        t: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Cache] = None,
     ):
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
@@ -1237,11 +1242,11 @@ class E2D2(BD3LM):
         xt = self._sample_q_xt(x0=input_ids, alpha_t=alpha_t, context_mask=context_mask)
         # Ensure each block has at least 1 masked token
         if self.training:
-        xt = self._ensure_no_unmasked_blocks(
-            input_ids,
-            xt,
-            context_mask,
-        )        
+            xt = self._ensure_no_unmasked_blocks(
+                input_ids,
+                xt,
+                context_mask,
+            )
         if self.config.attn_backend == "sdpa":
             decoder_attention_mask = (
                 self.static_attention_mask[None, ...]
@@ -1263,7 +1268,7 @@ class E2D2(BD3LM):
                 decoder_attention_mask, dtype=torch.float
             )
         elif self.config.attn_backend == "flex_attention":
-            # TODO enable bi-directional attention on context for seq2seq tasks
+            # TODO enable bidirectional attention on context for seq2seq tasks
             if context_mask.any():
                 raise NotImplementedError(
                     "flex_attention with context_mask not implemented yet."
@@ -1332,11 +1337,11 @@ class E2D2(BD3LM):
 
     def _prepare_inputs_inference(
         self,
-        input_ids: torch.LongTensor | None = None,
-        attention_mask: torch.FloatTensor | None = None,
-        context: torch.LongTensor | None = None,
-        context_mask: torch.FloatTensor | None = None,
-        cache: Dict[str, Any] | None = None,
+        input_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        context: Optional[torch.LongTensor] = None,
+        context_mask: Optional[torch.FloatTensor] = None,
+        cache: Optional[Dict[str, Any]] = None,
         return_updated_cache: bool = False,
         **backbone_kwargs: Dict[str, Any],
     ) -> Tuple[DenoiserInput, Union[Dict[str, Any], None]]:
