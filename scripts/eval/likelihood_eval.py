@@ -12,7 +12,6 @@ from transformers import AutoModelForCausalLM, AutoModelForMaskedLM
 from scripts.utils import (
     load_model_from_ckpt_dir_path,
     maybe_add_missing_special_tokens,
-    print_and_save_config,
     register_useful_resolvers,
 )
 from src.utils import fsspec_exists
@@ -22,7 +21,6 @@ log = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="eval_config")
 def main(cfg: DictConfig) -> None:
-    print_and_save_config(cfg, resolve=True, save_cfg=False)
     reproducibility.seed_all(cfg.seed)
 
     # Load tokenizer

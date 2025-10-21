@@ -27,7 +27,6 @@ from datasets import Dataset
 from scripts.utils import (
     load_model_from_ckpt_dir_path,
     maybe_add_missing_special_tokens,
-    print_and_save_config,
     register_useful_resolvers,
     set_seed,
 )
@@ -105,6 +104,7 @@ class LMEvalHarnessModel(LM):
                     pretrained_model_name_or_path,
                     trust_remote_code=True,
                     revision=pretrained_model_revision,
+                    **model_config_overrides,
                 )
         self.model = model.to(self.device)
         self.model.eval()
@@ -255,8 +255,6 @@ class LMEvalHarnessModel(LM):
 def main(cfg: DictConfig) -> None:
     accelerator = accelerate.Accelerator()
     accelerator = accelerate.Accelerator() if accelerator.num_processes > 1 else None
-    if accelerator is None or accelerator.local_process_index == 0:
-        print_and_save_config(cfg, resolve=True, save_cfg=False)
     set_seed(cfg.seed)
     model = hydra.utils.instantiate(cfg.task.model, accelerator=accelerator)
     results = hydra.utils.call(cfg.task, model=model)
@@ -275,7 +273,6 @@ def main(cfg: DictConfig) -> None:
         with open(metrics_f, "w") as f:
             f.write(make_table(results))
         if "groups" in results:
-            print_and_save_config(cfg, resolve=True, save_cfg=False)
             print(make_table(results, "groups"))
 
 
