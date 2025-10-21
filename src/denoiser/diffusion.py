@@ -1055,11 +1055,10 @@ class BD3LM(MDLM):
         denoiser_inputs: DenoiserInput,
         **kwargs: Any,
     ) -> LossAndNllOutput:
-        if self.config.backbone_is_decoder_only:
-            input_length = denoiser_inputs.xt.shape[1] // 2
-            model_output = model_output[:, input_length:, ...]
+        input_length = denoiser_inputs.xt.shape[1] // 2
+        model_output = model_output[:, input_length:, ...]
         return super()._compute_loss(
-            model_output=model_output,
+            model_output=model_output,  # type: ignore
             denoiser_inputs=denoiser_inputs,
             **kwargs,
         )
@@ -1444,3 +1443,15 @@ class E2D2(BD3LM):
             }
             | backbone_kwargs,
         ), cache  # TODO: potentially returning cache None, violates return type
+
+    def _compute_loss(
+        self,
+        model_output: torch.FloatTensor,
+        denoiser_inputs: DenoiserInput,
+        **kwargs: Any,
+    ) -> LossAndNllOutput:
+        return super(BD3LM, self)._compute_loss(
+            model_output=model_output,
+            denoiser_inputs=denoiser_inputs,
+            **kwargs,
+        )
