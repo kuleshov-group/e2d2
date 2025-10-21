@@ -178,6 +178,9 @@ class Denoiser(ABC, PreTrainedModel):
             if config.time_conditioned_backbone is not None
             else "noise" in inspect.getfullargspec(self.backbone.forward).args
         )
+        # List that can contain any parameters that should not be pushed to HF,
+        # e.g., registered buffers for static attention masks
+        self.skip_params_for_push = []
 
     @abstractmethod
     def _prepare_inputs(

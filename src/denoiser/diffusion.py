@@ -176,6 +176,7 @@ class D3PM(Denoiser):
             "static_attention_mask",
             static_mask,
         )
+        self.skip_params_for_push.append("static_attention_mask")
 
     def _sample_q_xt(
         self,
@@ -851,6 +852,7 @@ class BD3LM(MDLM):
                 "static_attention_mask",
                 static_mask,
             )
+            self.skip_params_for_push.append("static_attention_mask")
         elif self.config.attn_backend == "flex_attention":
             mask = partial(
                 self._block_mask,
@@ -1203,6 +1205,8 @@ class E2D2(BD3LM):
                 "static_attention_mask",
                 decoder_static_mask,
             )
+            self.skip_params_for_push.append("encoder_static_attention_mask")
+            self.skip_params_for_push.append("static_attention_mask")
 
     def _prepare_inputs(
         self,
