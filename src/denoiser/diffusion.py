@@ -1450,6 +1450,7 @@ class E2D2(BD3LM):
         denoiser_inputs: DenoiserInput,
         **kwargs: Any,
     ) -> LossAndNllOutput:
+        # Use MDLM `_compute_loss`, since BD3LM method splits model_output
         return super(BD3LM, self)._compute_loss(
             model_output=model_output,
             denoiser_inputs=denoiser_inputs,

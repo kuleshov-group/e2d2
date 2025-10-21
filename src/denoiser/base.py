@@ -151,8 +151,8 @@ class Denoiser(ABC, PreTrainedModel):
             # When using HF and `from_pretrained`, the modules specified in `_target_`
             # fields in our configs are already being imported under a name with the
             # following format: transformers_modules.<repo_id>.<commit_id>.
-            # So, when hydra attempts to instantiate and calls importlib under the hood,
-            # the desired module is not found.
+            # When hydra attempts to instantiate and calls importlib under the hood, the
+            # desired module is not found.
             # The snippet below aliases the desired module, enabling seamless use of
             # `hydra.utils.instantiate`.
             sys_modules = copy.deepcopy(list(sys.modules.keys()))
