@@ -7,6 +7,7 @@ import shutil
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory, gettempdir
+from types import MethodType
 
 import fsspec
 from huggingface_hub import HfApi, file_exists, repo_exists
@@ -175,6 +176,11 @@ def _flatten_and_copy(src_path: Path, dest_path: Path, ignore: list[str]) -> Non
     _copy_file_contents_and_flatten_relative_imports(src_path, dest_path)
 
 
+def _state_dict_no_buffers(self, *args, **kwargs):
+    """Return only named parameters, no buffers."""
+    return dict(self.named_parameters())
+
+
 def save_pretrained_or_push_to_hub(
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
@@ -248,6 +254,9 @@ def save_pretrained_or_push_to_hub(
             tokenizer.push_to_hub(
                 repo_id, private=private, commit_message="Upload tokenizer"
             )
+
+        # Temporarily override state_dict()
+        model.state_dict = MethodType(_state_dict_no_buffers, model)
         model.push_to_hub(
             repo_id,
             private=private,
