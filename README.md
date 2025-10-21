@@ -6,12 +6,8 @@ work.
 
 ### Setup environment
 
-Install mamba or conda (mamba is far faster):
-
+Install conda:
 ```bash
-# For mamba: https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html#umamba-install
-"${SHELL}" <(curl -L micro.mamba.pm/install.sh)
-
 # For conda: https://docs.conda.io/projects/conda/en/stable/user-guide/install/linux.html
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
 bash miniconda.sh -b -p /opt/conda
@@ -20,14 +16,13 @@ bash miniconda.sh -b -p /opt/conda
 Setup a conda environment and install dependencies using:
 
 ```bash
-micromamba env create -y -f requirements.yaml --channel-priority flexible
+conda env create -f requirements.yaml
 ```
 
 Activate the environment:
 
 ```bash
 conda activate e2d2-env
-# OR micromamba activate e2d2-env
 ```
 
 We also include a [`setup_env.sh`](./setup_env.sh) script that can be used to set up the
@@ -81,10 +76,10 @@ were applied.
 experiments from our work.
 See [below](##reproducing-experiments).
 2. [`configs`](configs): We utilize hydra config files to organize experiments.
-   1. [`config.yaml`](configs/config.yaml) This is the config file that serves as the
-   entry point for launching training experiments.
-   2. [`eval_config.yaml`](configs/eval_config.yaml) This is the config file that serves
-   as the entry point for evaluations.
+   1. [`config.yaml`](configs/config.yaml) This config is the entry point for launching
+   training experiments.
+   2. [`eval_config.yaml`](configs/eval_config.yaml) This config is the entry point for
+   evaluations.
 3. [`scripts`](scripts): The main training and evaluation scripts
    1. [`scripts/composer_scripts/train_discrete_denoiser.py`](scripts/composer_scripts/train_discrete_denoiser.py):
    This script is the main training entry point.
@@ -105,6 +100,9 @@ See [below](##reproducing-experiments).
          - `E2D2`: Our encoder-decoder implementation.
    2. [`src/backbone`](src/backbone): These are the underlying neural networks the take
    in noisy inputs and produce logits.
+   Each denoiser is parameterized by a backbone.
+   The denoiser can optionally, post-process the logit outputs of the backbone to
+   produce log-probs over the clean sequence.
 
 
 ## 2. Reproducing Experiments
@@ -122,3 +120,11 @@ In that file, and similar ones for other evaluations, specify the path to the sa
 checkpoints, and uncomment the relevant section for a given denoiser class.
 We also provide scripts that will produce the generation throughput numbers we report.
 These files contain a `_tput` at the end of the script name.
+
+## 3. HuggingFace Integration
+TODO: Describe how to use HF models and run eval scripts with them.
+
+## Citation
+```
+TODO: Add bibtex
+```
