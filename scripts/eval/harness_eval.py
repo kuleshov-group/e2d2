@@ -99,7 +99,7 @@ class LMEvalHarnessModel(LM):
                     revision=pretrained_model_revision,
                     **model_config_overrides,
                 )
-            except ValueError:  # Model not compatible with CausalLM
+            except:  # Model not compatible with CausalLM
                 model = AutoModelForMaskedLM.from_pretrained(
                     pretrained_model_name_or_path,
                     trust_remote_code=True,

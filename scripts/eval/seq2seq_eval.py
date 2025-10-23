@@ -92,7 +92,7 @@ def main(cfg: DictConfig) -> None:
                 revision=getattr(cfg, "pretrained_model_revision", None),
                 **getattr(cfg, "model_config_overrides", {}),
             )
-        except ValueError:  # Model not compatible with CausalLM
+        except:  # Model not compatible with CausalLM
             model = AutoModelForMaskedLM.from_pretrained(
                 cfg.pretrained_model_name_or_path,
                 trust_remote_code=True,
