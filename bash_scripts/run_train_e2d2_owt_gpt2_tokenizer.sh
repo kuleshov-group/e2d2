@@ -40,7 +40,7 @@ composer -n ${NUM_VISIBLE_DEVICES} scripts/composer_scripts/train_discrete_denoi
   composer/lr_scheduler=constant_with_warmup \
   composer.lr_scheduler.t_warmup=${WARMUP_DURATION} \
   model=e2d2 \
-  model.config.attn_backend="sdpa" \
+  model.config.attn_backend="flex_attention" \
   training.compile_backbone=true \
   model.config.length=1024 \
   model/backbone@model.config.backbone_config=llm_as_encoder_decoder \
