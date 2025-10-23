@@ -1,4 +1,4 @@
-# E2D2: Encoder-Decoder Block Diffusion Language Models for Efficient Training and Inference
+# E2D2: Encoder-Decoder Diffusion Language Models for Efficient Training and Inference
 This repository contains code and scripts for reproducing experimental results from our
 work.
 
@@ -35,7 +35,7 @@ source setup_env.sh
 You can also include this snippet in shell / slurm scripts to set up the environment on
 a compute node.
 
-In this script, we setup WandB and HuggingFace tokens by sourcing a script which is
+In this script, we set up WandB and HuggingFace tokens by sourcing a script which is
 expected to be in the `/home/<YOUR_USER_NAME>/` directory.
 Copy the contents below into a shell script `/home/<YOUR_USER_NAME>/setup_discdiff.sh`
 and replace the placeholder tokens with your own:
@@ -55,7 +55,7 @@ huggingface-cli login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
 - HuggingFace token can be setup [here](https://huggingface.co/settings/tokens).
 
 ### Contributing to the repo
-We will try to use github issues to track bugs, features, and todos.
+We will try to use GitHub issues to track bugs, features, and todos.
 To contribute to the repo, please create a new issue and assign it to yourself.
 Then [create a new branch from the issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-a-branch-for-an-issue)
 and open a pull request.
@@ -74,7 +74,7 @@ were applied.
 ## 1. Code Organization
 1. [`bash_scripts`](bash_scripts): These shells scripts can be used to reproduce the
 experiments from our work.
-See [below](##reproducing-experiments).
+See [below](#2-reproducing-experiments).
 2. [`configs`](configs): We utilize hydra config files to organize experiments.
    1. [`config.yaml`](configs/config.yaml) This config is the entry point for launching
    training experiments.
@@ -122,7 +122,30 @@ We also provide scripts that will produce the generation throughput numbers we r
 These files contain a `_tput` at the end of the script name.
 
 ## 3. HuggingFace Integration
-TODO: Describe how to use HF models and run eval scripts with them.
+We release the following models on HuggingFace:
+- E2D2 for text summarization (trained from scratch):
+[`kuleshov-group/e2d2-cnndm`](https://huggingface.co/kuleshov-group/e2d2-cnndm)
+- E2D2 for machine translation (trained from scratch):
+[`kuleshov-group/e2d2-wmt`](https://huggingface.co/kuleshov-group/e2d2-wmt)
+- E2D2 for mathematical reasoning (fine-tuned from Qwen3):
+[`kuleshov-group/e2d2-gsm8k-finetune-Qwen3-2B`](https://huggingface.co/kuleshov-group/e2d2-gsm8k-finetune-Qwen3-2B)
+- E2D2 trained on OpenWebText (trained from scratch):
+[`kuleshov-group/e2d2-owt`](https://huggingface.co/kuleshov-group/e2d2-owt)
+
+To use these models, follow the snippet below:
+```python
+from transformers import AutoModelForMaskedLM
+
+# model_config_overrides = {}  # Use this to optionally override config parameters
+model = AutoModelForMaskedLM.from_pretrained(
+    "kuleshov-group/e2d2-cnndm",  # Use one of the repos from above
+    trust_remote_code=True,
+    # **model_config_overrides,
+)
+```
+
+These models can also be used in the evaluation scripts by setting
+`pretrained_model_name_or_path=` to one of the options above.
 
 ## Citation
 ```
