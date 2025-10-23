@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 @hydra.main(version_base=None, config_path="../../configs", config_name="eval_config")
 def main(cfg: DictConfig) -> None:
     reproducibility.seed_all(cfg.seed)
+    reproducibility.configure_deterministic_mode()
 
     # Load tokenizer
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
@@ -60,6 +61,7 @@ def main(cfg: DictConfig) -> None:
         dist.initialize_dist(timeout=600)
     log.info("All nodes connected")
 
+    print(f"Running likelihood eval for {cfg.task.eval_dataset}")
     eval_dataset = hydra.utils.instantiate(
         cfg.task.eval_dataset, tokenizer=tokenizer, max_length=model.config.length
     )
