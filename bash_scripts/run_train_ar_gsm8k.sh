@@ -12,15 +12,14 @@ REINIT_MODEL=false
 
 # Hyperparameters
 LR=1e-5
-ALPHA_F=0.0
-WARMUP_DURATION="1000ba"
-BATCH_SIZE=96
-MAX_DURATION="20000ba"
+WARMUP_DURATION="100ba"
+ALPHA_F=0.5
+BATCH_SIZE=1
+MAX_DURATION="30000ba"
 PRECISION="amp_bf16"
 
 PRETRAINED_MODEL_NAME_OR_PATH=Qwen/Qwen3-1.7B-Base
 NUM_SHOT=0
-TRAIN_ON_CONTEXT=false
 
 TAG="ar"
 if [ "${TOP_LAYERS}" == "true" ]; then
@@ -44,7 +43,7 @@ composer -n ${NUM_VISIBLE_DEVICES} scripts/composer_scripts/train_discrete_denoi
   train_dataset.num_shot=${NUM_SHOT} \
   composer.optimizer.lr=${LR} \
   composer.trainer.precision=${PRECISION} \
-  composer.trainer.eval_interval="1ep" \
+  composer.trainer.eval_interval="1000ba" \
   composer.trainer.max_duration=${MAX_DURATION} \
   composer.trainer.save_num_checkpoints_to_keep=1 \
   composer/lr_scheduler=cosine_annealing_with_warmup \
@@ -59,9 +58,8 @@ composer -n ${NUM_VISIBLE_DEVICES} scripts/composer_scripts/train_discrete_denoi
   training.global_batch_size=${BATCH_SIZE} \
   training.grad_accum=$(( BATCH_SIZE / NUM_VISIBLE_DEVICES / MICRO_BATCH_SIZE )) \
   hydra.run.dir=outputs/${RUN_NAME} \
-  composer.trainer.save_interval="1ep" \
+  composer.trainer.save_interval="1000ba" \
   composer.loggers.name=${RUN_NAME} \
   train_dataloader.num_workers=${NUM_WORKERS} \
   composer.callbacks.hf_compatible_checkpointing.disable_hf=true \
   eval_dataloader.batch_size=8 \
-  model.config.train_on_context=${TRAIN_ON_CONTEXT}
