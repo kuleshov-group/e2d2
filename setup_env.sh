@@ -8,10 +8,10 @@
 # shellcheck source=${HOME}/.bashrc disable=SC1091
 source "${CONDA_SHELL}"
 if [ -z "${CONDA_PREFIX}" ]; then
-    conda activate dllm-dev
- elif [[ "${CONDA_PREFIX}" != *"/dllm-dev" ]]; then
+    conda activate e2d2-env
+ elif [[ "${CONDA_PREFIX}" != *"/e2d2-env" ]]; then
   conda deactivate
-  conda activate dllm-dev
+  conda activate e2d2-env
 fi
 
 # W&B / HF Setup
@@ -24,6 +24,5 @@ export PYTHONPATH="${PWD}:${HF_HOME}/modules"
 
 # Enforce verbose Hydra error logging
 export HYDRA_FULL_ERROR=1
-# export TMPDIR="${PWD}/.tmp"  # TODO: currently this is causing OSErrors
 
 export NCCL_P2P_LEVEL=NVL
