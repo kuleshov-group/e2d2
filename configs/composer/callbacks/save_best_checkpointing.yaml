@@ -1,0 +1,11 @@
+save_best_checkpointing:
+  _target_: src.custom_composer.callbacks.SaveBestCheckpointing
+  folder: ${composer.trainer.save_folder}
+  filename: 'best-rank{rank}.pt'
+  num_checkpoints_to_keep: -1
+  metric_to_monitor: eval/loss  # <train|val>/<metric_name>
+  mode: 'min'
+  disable_hf: true
+  save_local: true
+  save_to_hub: false
+  hub_repo_id: null

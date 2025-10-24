@@ -1,0 +1,15 @@
+# Sets defaults for composer scripts
+defaults:
+  - trainer: trainer
+  - algorithms:
+    - ema
+    - gradient_clipping
+  - callbacks:
+      - hf_compatible_checkpointing
+      - lr_monitor
+      - runtime_estimator
+      - save_best_checkpointing
+      - speed_monitor
+  - loggers: wandb
+  - lr_scheduler: constant_with_warmup
+  - optimizer: decoupled_adamw

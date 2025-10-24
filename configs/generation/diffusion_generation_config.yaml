@@ -1,0 +1,14 @@
+defaults:
+  - generation_config@_here_
+  - _self_
+_target_: src.denoiser.diffusion.DiffusionGenerationConfig
+num_steps: 1000
+min_t: 1e-5
+block_size: ${block_size}
+first_hitting: true
+sampling_strategy: "predict_and_noise"
+confidence_based_noising: true
+confidence_margin_based_noising: false
+confidence_threshold: 1.0
+use_model_output_cache: true
+align_inputs_to_blocks: false

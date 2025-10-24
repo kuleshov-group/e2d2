@@ -1,0 +1,34 @@
+#file: noinspection LongLine
+# Composer Trainer
+# Need to pass the following at runtime:
+#  - model
+#  - optimizer (composer.optim),
+#  - loggers (list[composer.loggers]),
+#  - algorithms (list[composer.algorithms]),
+#  - scheduler (composer.optim.scheduler),
+#  - callbacks (list[composer.callbacks]),
+_target_: composer.Trainer
+run_name: ${run_name}
+seed: ${seed}
+device: ${backend}
+train_subset_num_batches: -1
+eval_subset_num_batches: -1
+max_duration: '1000000ba'
+eval_interval: '10000ba'
+progress_bar: false
+log_to_console: true
+console_log_interval: '10ba'
+precision: 'amp_bf16'
+device_train_microbatch_size: ${div_up:${train_dataloader.batch_size}, ${training.grad_accum}}
+save_folder: ${checkpointing.save_dir}
+save_filename: 'ep{epoch}-ba{batch}-rank{rank}.pt'
+save_latest_filename: 'latest-rank{rank}.pt'
+save_interval: '100000ba'
+save_num_checkpoints_to_keep: -1
+save_overwrite: false
+save_metrics: false  # TODO: Does this need to be set to true for resumption of metrics?
+load_path: ${training.load_path}
+load_weights_only: false
+autoresume: ${training.autoresume}
+python_log_level: null
+dist_timeout: 600.0

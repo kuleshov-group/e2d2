@@ -1,0 +1,4 @@
+defaults:
+  - cnn_dailymail_train
+split: "test"
+truncate: true
