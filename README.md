@@ -127,15 +127,21 @@ checkpoints, and uncomment the relevant section for a given denoiser class.
 We also provide scripts that will produce the generation throughput numbers we report.
 These files contain a `_tput` at the end of the script name.
 
+Below are the evaluation scripts provided for various tasks:
+- Text summarization: [`run_seq2seq_eval_cnndm.sh`](bash_scripts/run_seq2seq_eval_cnndm.sh),[`run_seq2seq_eval_cnndm_tput.sh`](bash_scripts/run_seq2seq_eval_cnndm_tput.sh)
+- Machine translation: [`run_seq2seq_eval_wmt.sh`](bash_scripts/run_seq2seq_eval_wmt.sh), [`run_seq2seq_eval_wmt_tput.sh`](bash_scripts/run_seq2seq_eval_wmt_tput.sh).
+- Mathematical reasoning: [`run_lm_eval_harness.sh`](bash_scripts/run_lm_eval_harness.sh), [`run_lm_eval_harness_tput.sh`](bash_scripts/run_lm_eval_harness_tput.sh), [`run_likelihood_eval_gsm8k.sh`](bash_scripts/run_likelihood_eval_gsm8k.sh)
+- Unconditional text generation (trained on OpenWebText): [`run_likelihood_eval_owt.sh`](bash_scripts/run_likelihood_eval_owt.sh)
+
 ## 3. HuggingFace Integration
 We release the following models on HuggingFace:
-- E2D2 for text summarization (trained from scratch):
+- 80M E2D2 for text summarization (trained from scratch):
 [`kuleshov-group/e2d2-cnndm`](https://huggingface.co/kuleshov-group/e2d2-cnndm)
-- E2D2 for machine translation (trained from scratch):
+- 250M E2D2 for machine translation (trained from scratch):
 [`kuleshov-group/e2d2-wmt`](https://huggingface.co/kuleshov-group/e2d2-wmt)
-- E2D2 for mathematical reasoning (fine-tuned from Qwen3):
+- 1.7B E2D2 for mathematical reasoning (fine-tuned from Qwen3):
 [`kuleshov-group/e2d2-gsm8k-finetune-Qwen3-2B`](https://huggingface.co/kuleshov-group/e2d2-gsm8k-finetune-Qwen3-2B)
-- E2D2 trained on OpenWebText (trained from scratch):
+- 170M E2D2 trained on OpenWebText (trained from scratch):
 [`kuleshov-group/e2d2-owt`](https://huggingface.co/kuleshov-group/e2d2-owt)
 
 To use these models, follow the snippet below:
@@ -155,5 +161,12 @@ These models can also be used in the evaluation scripts by setting
 
 ## Citation
 ```
-TODO: Add bibtex
+@inproceedings{
+arriola2025e2d2,
+title={Encoder-Decoder Diffusion Language Models for Efficient Training and Inference},
+author={Marianne Arriola and Yair Schiff and Hao Phung and Aaron Gokaslan and Volodymyr Kuleshov},
+booktitle={The Thirty-ninth Annual Conference on Neural Information Processing Systems},
+year={2025},
+url={TODO}
+}
 ```
