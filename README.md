@@ -131,7 +131,7 @@ Below are the evaluation scripts provided for various tasks:
 - Text summarization: [`run_seq2seq_eval_cnndm.sh`](bash_scripts/run_seq2seq_eval_cnndm.sh),[`run_seq2seq_eval_cnndm_tput.sh`](bash_scripts/run_seq2seq_eval_cnndm_tput.sh)
 - Machine translation: [`run_seq2seq_eval_wmt.sh`](bash_scripts/run_seq2seq_eval_wmt.sh), [`run_seq2seq_eval_wmt_tput.sh`](bash_scripts/run_seq2seq_eval_wmt_tput.sh).
 - Mathematical reasoning: [`run_lm_eval_harness.sh`](bash_scripts/run_lm_eval_harness.sh), [`run_lm_eval_harness_tput.sh`](bash_scripts/run_lm_eval_harness_tput.sh), [`run_likelihood_eval_gsm8k.sh`](bash_scripts/run_likelihood_eval_gsm8k.sh)
-- Unconditional text generation (trained on OpenWebText): [`run_likelihood_eval_owt.sh`](bash_scripts/run_likelihood_eval_owt.sh)
+- Likelihood estimation (trained on OpenWebText): [`run_likelihood_eval_owt.sh`](bash_scripts/run_likelihood_eval_owt.sh)
 
 ## 3. HuggingFace Integration
 We release the following models on HuggingFace:
