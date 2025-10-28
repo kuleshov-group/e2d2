@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Encoder-Decoder Diffusion Language Models for Efficient Training and Inference"
+doi: "10.48550/arXiv.2510.22852"
+authors:
+  - family-names: "Arriola"
+    given-names: "Marianne"
+  - family-names: "Schiff"
+    given-names: "Yair"
+  - family-names: "Phung"
+    given-names: "Hao"
+  - family-names: "Gokaslan"
+    given-names: "Aaron"
+  - family-names: "Kuleshov"
+    given-names: "Volodymyr"
+date-released: 2025-26-10
+version: "arXiv:2510.22852"
