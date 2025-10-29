@@ -147,8 +147,8 @@ We release the following models on HuggingFace:
 To use these models, follow the snippet below:
 ```python
 from transformers import AutoModelForMaskedLM, AutoTokenizer
-import torch
 from transformers.generation.stopping_criteria import EosTokenCriteria
+import torch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # model_config_overrides = {}  # Use this to optionally override config parameters
