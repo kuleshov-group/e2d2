@@ -146,14 +146,42 @@ We release the following models on HuggingFace:
 
 To use these models, follow the snippet below:
 ```python
-from transformers import AutoModelForMaskedLM
+from transformers import AutoModelForMaskedLM, AutoTokenizer
+import torch
+from transformers.generation.stopping_criteria import EosTokenCriteria
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # model_config_overrides = {}  # Use this to optionally override config parameters
 model = AutoModelForMaskedLM.from_pretrained(
-    "kuleshov-group/e2d2-cnndm",  # Use one of the repos from above
+    "kuleshov-group/e2d2-gsm8k-finetune-Qwen3-2B",  # Use one of the repos from above
     trust_remote_code=True,
     # **model_config_overrides,
+).to(device)
+tokenizer = AutoTokenizer.from_pretrained(
+   "kuleshov-group/e2d2-gsm8k-finetune-Qwen3-2B",  # Use one of the repos from above
+   trust_remote_code=True,
 )
+
+system_prompt = "Please reason step by step, and put your final answer within $\\boxed{}$."
+user_prompt = "Every day, Wendi feeds each of her chickens three cups of mixed \
+chicken feed, containing seeds, mealworms and vegetables to help keep them \
+healthy. She gives the chickens their feed in three separate meals. In \
+the morning, she gives her flock of chickens 15 cups of feed. In the \
+afternoon, she gives her chickens another 25 cups of feed. How many cups \
+of feed does she need to give her chickens in the final meal of the day if \
+the size of Wendi’s flock is 20 chickens?"
+
+inputs = tokenizer(
+   tokenizer.eos_token + system_prompt + user_prompt + tokenizer.eos_token + "Answer:",
+   return_tensors="pt").to(device)
+
+with torch.inference_mode():
+   output_ids = model.generate(
+      inputs=inputs["input_ids"],
+      max_new_tokens=256,  # Set a maximum length for the output
+      stopping_criteria=EosTokenCriteria(tokenizer.eos_token_id), # Stop generation after next EOS
+   )
+print(tokenizer.decode(output_ids[0]))
 ```
 
 These models can also be used in the evaluation scripts by setting
